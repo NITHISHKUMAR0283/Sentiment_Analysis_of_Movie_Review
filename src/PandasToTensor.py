@@ -8,7 +8,8 @@ class PandasToTensor(Dataset):
         self.label = torch.tensor(train_data['label'].tolist(),dtype=torch.long)
         self.tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
         self.max_length = max_length
-        
+        self.vocab_size = self.tokenizer.vocab_size
+
     def __getitem__(self, index):
         token = self.tokenizer(self.train_text[index],
                                max_length = self.max_length,
