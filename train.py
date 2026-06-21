@@ -17,8 +17,8 @@ download_imdb()
 train_raw, test_raw = get_data()
 
 
-full_train_dataset = PandasToTensor(train_data=train_raw, max_length=128)
-test_dataset = PandasToTensor(train_data=test_raw, max_length=128)
+full_train_dataset = PandasToTensor(train_data=train_raw, max_length=256)
+test_dataset = PandasToTensor(train_data=test_raw, max_length=256)
 
 train_size = int(0.8 * len(full_train_dataset))
 val_size = len(full_train_dataset) - train_size
@@ -26,26 +26,29 @@ val_size = len(full_train_dataset) - train_size
 train_dataset, val_dataset = random_split(
     full_train_dataset, 
     [train_size, val_size],
-    generator=torch.Generator().manual_seed(42) # Fixed seed for reproducible splits
+    generator=torch.Generator().manual_seed(42) 
 )
 
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False)
 
-model = SentimentClassifier(vocab_size=full_train_dataset.vocab_size)
+model = SentimentClassifier()
 model.to(device)
 
 criterian = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(),lr=1e-3)
+optimizer = torch.optim.AdamW(
+    model.parameters(),
+    lr=2e-5
+)
 
 scaler = torch.amp.GradScaler(device.type, enabled=(device.type == 'cuda'))
 
 
 
-num_epoch = 10
+num_epoch = 3
 history = {"train_loss": [], "val_loss": [], "val_acc": []}
-
+best_acc = 0
 
 for epoch in range(num_epoch):
     
@@ -92,13 +95,16 @@ for epoch in range(num_epoch):
     avg_val_loss = val_loss / len(val_loader)
     val_acc = (correct / total) * 100
 
+    if val_acc > best_acc:
+        best_acc = val_acc
+        torch.save(model.state_dict(),"best_model.pth")
     history["train_loss"].append(avg_train_loss)
     history["val_loss"].append(avg_val_loss)
     history["val_acc"].append(val_acc)
 
     print(f"Epoch [{epoch+1:02d}/{num_epoch:02d}] -> Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f} | Val Acc: {val_acc:.2f}%")
 
-
+model.load_state_dict(torch.load("best_model.pth",map_location = device))
 print("\nRunning Final Evaluation on Test Dataset...")
 model.eval()
 all_pred = []
